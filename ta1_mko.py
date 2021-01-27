@@ -1,5 +1,6 @@
 from ctypes import *
 import os
+import time
 
 
 class Device:
@@ -96,6 +97,7 @@ class Device:
         self.ta1_lib.bcdefbus(self.bus)
 
     def send_to_rt(self, addr, subaddr, data, leng):
+        self.bus_state = 1 if self.bus == self.BUS_1 else 2
         self.change_bus()
         if subaddr <= 0:
             subaddr = 1
@@ -107,15 +109,18 @@ class Device:
         for i in range(leng):
             self.ta1_lib.bcputw(i+1, data[i])
         self.ta1_lib.bcstart(1, self.DATA_BC_RT)
+        time.sleep(0.001)
         #
         self.command_word = self.ta1_lib.bcgetw(0)
         self.answer_word = self.ta1_lib.bcgetw(1 + leng)  # self.ta1_lib.bcgetansw(DATA_BC_RT) & 0xFFFF
+        # self.print_base()
         #
         if self.answer_word == 0xFEFE:
             self.bus_state = 1 if self.bus == self.BUS_1 else 2
             self.change_bus()
             self.ta1_lib.bcputw(0, control_word)
             self.ta1_lib.bcstart(1, self.DATA_BC_RT)
+            time.sleep(0.001)
             self.command_word = self.ta1_lib.bcgetw(0)
             self.answer_word = self.ta1_lib.bcgetw(1+leng)  # self.ta1_lib.bcgetansw(DATA_BC_RT) & 0xFFFF
             # self.print_base()
