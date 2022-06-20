@@ -10,6 +10,11 @@ import ske_luna_tests
 import bdk2_tests
 import mbkap_tests
 import bdd_mk_tests
+import kvv_tests
+
+self_version = "0.2"
+
+# TODO: добавить вывод версии ПО в лог МКО как заголовок (с жругой сборной информацией)
 
 ta1 = mko.Device()
 
@@ -27,7 +32,7 @@ mpp_log_name = str(os.getcwd()) + "\\" + "Log MPP Files\\" + time.strftime("%Y_%
 log_file = None
 mpp_log_file = None
 # задание программы
-mko_cyclogram = bdd_mk_tests.all_test
+mko_cyclogram = kvv_tests.music_test
 
 #
 mko_polling = mko.PollingProgram(program=mko_cyclogram)
