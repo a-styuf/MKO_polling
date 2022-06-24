@@ -31,7 +31,7 @@ mpp_log_name = str(os.getcwd()) + "\\" + "Log MPP Files\\" + time.strftime("%Y_%
 log_file = None
 mpp_log_file = None
 # задание программы
-mko_cyclogram = ekkd_tests.fast_test
+mko_cyclogram = mbkap_tests.all_test
 
 #
 mko_polling = mko.PollingProgram(program=mko_cyclogram)
