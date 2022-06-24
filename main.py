@@ -11,10 +11,9 @@ import bdk2_tests
 import mbkap_tests
 import bdd_mk_tests
 import kvv_tests
+import ekkd_tests
 
-self_version = "0.2"
-
-# TODO: добавить вывод версии ПО в лог МКО как заголовок (с жругой сборной информацией)
+self_version = "0.3"
 
 ta1 = mko.Device()
 
@@ -32,7 +31,7 @@ mpp_log_name = str(os.getcwd()) + "\\" + "Log MPP Files\\" + time.strftime("%Y_%
 log_file = None
 mpp_log_file = None
 # задание программы
-mko_cyclogram = kvv_tests.music_test
+mko_cyclogram = ekkd_tests.fast_test
 
 #
 mko_polling = mko.PollingProgram(program=mko_cyclogram)
@@ -173,15 +172,19 @@ while 1:
     # ta1.disconnect()
     state = ta1.init()
     if state == 0:
-        input("Press Enter")
+        input("Press Enter to continue...\n")
         time_start = time.perf_counter()
         time_tmp = time_start + mko_polling.cycle[number][0]
         start_cycle_time = time.strftime("%Y_%m_%d %H-%M-%S", time.localtime())
         cycle_leng = mko_polling.cycle[len(mko_polling.cycle) - 1][0]
         stop_cycle_time = time.strftime("%Y_%m_%d %H-%M-%S", time.localtime(time.time() + cycle_leng))
         if normal_mode:
-            print("Polling start with cycle, len = {:d}".format(len(mko_polling.cycle)))
-            print("Start in {0:s}, finish in {1:s}".format(start_cycle_time, stop_cycle_time))
+            head_str = f"MKO polling ver {self_version}\n"
+            head_str += f"Polling start with cycle <{mko_cyclogram[0]}>, len: {len(mko_polling.cycle)}\n"
+            head_str += "Start at {0:s}, finish at {1:s}\n".format(start_cycle_time, stop_cycle_time)
+            print(head_str)
+            with open(log_file_name, 'a', encoding="utf-8") as l_f:
+                l_f.write(head_str + "\n")
         break
     else:
         print("MKO not opened")
@@ -211,6 +214,7 @@ if test_mode:
     pass
 # нормальная работа
 if normal_mode:
+
     while 1:
         # цикл проверки подключения МКО
         while 1:
