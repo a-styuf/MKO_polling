@@ -13,7 +13,7 @@ import bdd_mk_tests
 import kvv_tests
 import ekkd_tests
 
-self_version = "0.3"
+self_version = "0.3.3"
 
 ta1 = mko.Device()
 
@@ -31,7 +31,7 @@ mpp_log_name = str(os.getcwd()) + "\\" + "Log MPP Files\\" + time.strftime("%Y_%
 log_file = None
 mpp_log_file = None
 # задание программы
-mko_cyclogram = kvv_tests.ib_test
+mko_cyclogram = kvv_tests.dv_test
 
 #
 mko_polling = mko.PollingProgram(program=mko_cyclogram)
@@ -63,7 +63,7 @@ class FramesError:
             self.crc_bad_prc = 0
             self.busy_prc = 0
         repr_str = "crc_bad_prc = %.3f, busy_prc = %.3f, total=%d, crc_bad=%d, busy_cnt=%d" % \
-                   (self.crc_bad_prc,
+                    (self.crc_bad_prc,
                     self.busy_prc,
                     self.total_cnt,
                     self.crc_bad_cnt,
@@ -92,6 +92,37 @@ def create_log_file(file, dir_name="noname", prefix=""):
     file_name = dir_name + "\\" + time.strftime("%Y_%m_%d %H-%M-%S ", time.localtime()) + "Лог МКО_" + prefix + ".txt"
     file = open(file_name, 'w')
     return file, file_name
+
+def _calc_tr_res(u_ref, u_sign, r_1):
+    if ((u_ref - u_sign) == 0):
+        return 0.0
+    return r_1 * (u_sign/(u_ref - u_sign))
+
+def _linear_interpolation(x):
+    array_x = [803.1, 842.7, 882.2, 921.6, 960.9, 1000.0, 1039.0, 1077.9, 1116.7, 1155.4, 1194.0, 1385, 1758.4, 1758.4, 1758.4, 1758.4]
+    array_y = [-50, -40, -30. -20, -10, -00, +10, +20, +30, +40, +50, +100, +200, +200, +200, +200]
+    length = len(array_x)
+    if x < array_x[0]:
+        return array_y[0]
+    if x > array_x[length-1]: 
+        return array_y[length-1]
+    # проходим каждый из отрезков, для определения того, куда попадает X
+    for n in range(length):
+        if (x >= array_x[n]) & (x <= array_x[n+1]):
+            y = array_y[n] + (array_y[n+1] - array_y[n])*((x - array_x[n])/(array_x[n+1] - array_x[n]))
+            return y
+    return 0
+
+def additional_parcing(data_list):
+    p_str = ""
+    if mko_cyclogram[0] == "Прямой опрос DV":
+        adc_list = [data_list[4], data_list[5]]
+        vout_list = [(adc*3.3/4096) for adc in adc_list]
+        ptres_list = [_calc_tr_res(5.0, v, 1E3) for v in vout_list]
+        t_list = [_linear_interpolation(res) for res in ptres_list]
+        p_str += f"\tt1 = ;{adc_list[0]:04X}; v1 = ;{vout_list[0]:.3f};V r1 = ;{ptres_list[0]:.3f}; Ohm T = ;{t_list[0]:.3f};°C;"
+        p_str += f"\tt2 = ;{adc_list[1]:04X}; v2 = ;{vout_list[1]:.3f};V r2 = ;{ptres_list[1]:.3f}; Ohm T = ;{t_list[0]:.3f};°C"
+    return p_str
 
 
 def read_and_save(device, i_addr, i_subaddr, i_leng, file):
@@ -125,7 +156,10 @@ def read_and_save(device, i_addr, i_subaddr, i_leng, file):
                + "CW 0x{:04X}; ".format(device.command_word & 0xFFFF) + "AW 0x{:04X}: ".format(device.answer_word & 0xFFFF)
     for var in data_list:
         data_str += "{:04X} ".format(var)
-    data_str += "; {1:04X}; {0:s};\n".format(crc16_state, crc16_new)
+    data_str += "; {1:04X}; {0:s};".format(crc16_state, crc16_new)
+    # additional parsing
+    data_str += additional_parcing(data_list)
+    data_str += "\n"
     #
     if file:
         file.write(data_str)
