@@ -34,8 +34,7 @@ class MPPDatBDK2():
                 self.pulse_duration = list_to_int(data_int[5:7]) * 0.025E-6
                 self.zero_crossing_number = data_int[7]
                 self.pulse_maximum = adc_to_voltage_bdk2(data=data_int[8], number=self.channel_number, type=self.type)
-                self.pulse_power = adc_to_voltage_bdk2(data=list_to_int(data_int[9:11]),
-                                                       number=self.channel_number, type="mpp") * 0.025E-6
+                self.pulse_power = adc_to_voltage_bdk2(data=list_to_int(data_int[9:11]), number=self.channel_number, type="mpp") * 0.025E-6
                 self.pulse_mean = adc_to_voltage_bdk2(data=data_int[11], number=self.channel_number, type=self.type)
                 self.pulse_noise = adc_to_voltage_bdk2(data=data_int[12] / (2 ** 4), number=self.channel_number, type=self.type)
                 pass
@@ -286,7 +285,7 @@ def adc_to_voltage_bkap(data, number=0, type="others"):
     pass
 
 
-def adc_to_voltage_bdk2(data, number=0, type="mpp"):
+def adc_to_voltage_bdk2(data, number=0, type="mpp")-> float:
     if type == "mpp":
         if number == 1:
             return 0.01 * data - 0.0
@@ -309,7 +308,7 @@ def adc_to_voltage_bdk2(data, number=0, type="mpp"):
             return 0.001 * data - 0.0
         else:
             return 0.001 * data - 0.0
-    pass
+    return 0
 
 
 def list_to_int(data_list):

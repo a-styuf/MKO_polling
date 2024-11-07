@@ -2,16 +2,20 @@ import ta1_mko as mko
 import os
 import time
 import crc16
-import additional_parcing
+import additional_parcing # type: ignore
 import re
 #
 import bkap_tests
 import ske_luna_tests
 import bdk2_tests
+import bdk2m_tests
 import mbkap_tests
 import bdd_mk_tests
 import kvv_tests
 import ekkd_tests
+import ba_kv_tests
+import ba_kv_polling_ISS
+from loguru import logger
 
 self_version = "0.3.3"
 
@@ -24,17 +28,15 @@ archcount = 1
 osc_start = 0
 
 normal_mode = 1
-test_mode = 0
 
 log_dir_name = str(os.getcwd()) + "\\" + "Log Files\\" + time.strftime("%Y_%m_%d", time.localtime())
 mpp_log_name = str(os.getcwd()) + "\\" + "Log MPP Files\\" + time.strftime("%Y_%m_%d", time.localtime())
 log_file = None
 mpp_log_file = None
 # задание программы
-mko_cyclogram = kvv_tests.dv_test
+mko_cyclogram: list = ba_kv_polling_ISS.form_cg_bakv_CHP4_with_dv1_2_lvl()
 
 #
-mko_polling = mko.PollingProgram(program=mko_cyclogram)
 mpp = additional_parcing.MPPDatBKAP()
 inf = additional_parcing.InfBKAP()
 
@@ -100,7 +102,7 @@ def _calc_tr_res(u_ref, u_sign, r_1):
 
 def _linear_interpolation(x):
     array_x = [803.1, 842.7, 882.2, 921.6, 960.9, 1000.0, 1039.0, 1077.9, 1116.7, 1155.4, 1194.0, 1385, 1758.4, 1758.4, 1758.4, 1758.4]
-    array_y = [-50, -40, -30. -20, -10, -00, +10, +20, +30, +40, +50, +100, +200, +200, +200, +200]
+    array_y = [-50, -40, -30, -20, -10, -00, +10, +20, +30, +40, +50, +100, +200, +200, +200, +200]
     length = len(array_x)
     if x < array_x[0]:
         return array_y[0]
@@ -124,7 +126,6 @@ def additional_parcing(data_list):
         p_str += f"\tt2 = ;{adc_list[1]:04X}; v2 = ;{vout_list[1]:.3f};V r2 = ;{ptres_list[1]:.3f}; Ohm T = ;{t_list[0]:.3f};°C"
     return p_str
 
-
 def read_and_save(device, i_addr, i_subaddr, i_leng, file):
     global frames
     data_list = device.read_from_rt(i_addr, i_subaddr, i_leng)
@@ -136,8 +137,9 @@ def read_and_save(device, i_addr, i_subaddr, i_leng, file):
             break
         else:
             data_str = "{:.3f}; R; ".format(time.perf_counter()) \
-                       + "CW 0x{:04X}; ".format(device.command_word & 0xFFFF) \
-                       + "AW 0x{:04X}; ".format(device.answer_word & 0xFFFF) + "RT busy %d times\t" % (i+1)
+                        + f"CH {device.bus}; " \
+                        + "CW 0x{:04X}; ".format(device.command_word & 0xFFFF) \
+                        + "AW 0x{:04X}; ".format(device.answer_word & 0xFFFF) + "RT busy %d times\t" % (i+1)
             data_list = device.read_from_rt(i_addr, i_subaddr, i_leng)
             time.sleep(0.05)
     # busy check
@@ -153,7 +155,8 @@ def read_and_save(device, i_addr, i_subaddr, i_leng, file):
     # total_calc
     frames.total_cnt += 1
     data_str += "{:.3f}; R; ".format(time.perf_counter()) \
-               + "CW 0x{:04X}; ".format(device.command_word & 0xFFFF) + "AW 0x{:04X}: ".format(device.answer_word & 0xFFFF)
+            + f"CH {device.bus}; " \
+            + "CW 0x{:04X}; ".format(device.command_word & 0xFFFF) + "AW 0x{:04X}: ".format(device.answer_word & 0xFFFF)
     for var in data_list:
         data_str += "{:04X} ".format(var)
     data_str += "; {1:04X}; {0:s};".format(crc16_state, crc16_new)
@@ -165,7 +168,6 @@ def read_and_save(device, i_addr, i_subaddr, i_leng, file):
         file.write(data_str)
     return data_str[0:len(data_str)-1], data_list
 
-
 def send_and_save(device, i_addr, i_subaddr, i_data, i_leng, file):
     device.send_to_rt(i_addr, i_subaddr, i_data, i_leng)
     data_str = ""
@@ -174,11 +176,12 @@ def send_and_save(device, i_addr, i_subaddr, i_data, i_leng, file):
             break
         else:
             data_str = "{:.3f}; R; ".format(time.perf_counter()) \
-                       + "CW 0x{:04X}; ".format(device.command_word & 0xFFFF) \
-                       + "AW 0x{:04X}; ".format(device.answer_word & 0xFFFF) + "RT busy %d times\n" % (i+1)
+                        + f"CH {device.bus}; " \
+                        + "CW 0x{:04X}; ".format(device.command_word & 0xFFFF) \
+                        + "AW 0x{:04X}; ".format(device.answer_word & 0xFFFF) + "RT busy %d times\n" % (i+1)
             device.send_to_rt(i_addr, i_subaddr, i_data, i_leng)
             time.sleep(0.05)
-    data_str += "{:.3f}; W; ".format(time.perf_counter()) + "CW 0x{:04X}; ".format(
+    data_str += "{:.3f}; W; ".format(time.perf_counter()) + f"CH {device.bus}; " + "CW 0x{:04X}; ".format(
         device.command_word & 0xFFFF) + "AW 0x{:04X}: ".format(device.answer_word & 0xFFFF)
     for var in i_data:
         data_str += "{:04X} ".format(var)
@@ -188,12 +191,11 @@ def send_and_save(device, i_addr, i_subaddr, i_data, i_leng, file):
         file.write(data_str)
     return data_str[0:len(data_str)-1]
 
-
 def work_interval(start_time):
     return time.perf_counter() - start_time
 
 
-log_file, log_file_name = create_log_file(log_file, dir_name=log_dir_name, prefix=mko_cyclogram[0])
+# log_file, log_file_name = create_log_file(log_file, dir_name=log_dir_name, prefix=mko_cyclogram[0])
 frames = FramesError()
 
 # цикл опроса
@@ -201,88 +203,81 @@ number = 0
 data_old = 0
 repeat_counter = 0
 channel = 0
+repeat_num = 3
 
-while 1:
-    # ta1.disconnect()
-    state = ta1.init()
-    if state == 0:
-        input("Press Enter to continue...\n")
-        time_start = time.perf_counter()
-        time_tmp = time_start + mko_polling.cycle[number][0]
-        start_cycle_time = time.strftime("%Y_%m_%d %H-%M-%S", time.localtime())
-        cycle_leng = mko_polling.cycle[len(mko_polling.cycle) - 1][0]
-        stop_cycle_time = time.strftime("%Y_%m_%d %H-%M-%S", time.localtime(time.time() + cycle_leng))
-        if normal_mode:
-            head_str = f"MKO polling ver {self_version}\n"
-            head_str += f"Polling start with cycle <{mko_cyclogram[0]}>, len: {len(mko_polling.cycle)}\n"
-            head_str += "Start at {0:s}, finish at {1:s}\n".format(start_cycle_time, stop_cycle_time)
-            print(head_str)
-            with open(log_file_name, 'a', encoding="utf-8") as l_f:
-                l_f.write(head_str + "\n")
-        break
-    else:
-        print("MKO not opened")
-    time.sleep(2)
-# тестирование
-if test_mode:
-    start_test_time = time.perf_counter()
-    test_result = []
-    send_and_save(ta1, 13, 17, [0x000B, 0x0001, 0x01FF, 0x0000], 4, log_file)  # ускоренный режим
-    time.sleep(0.1)
-    # команда на старт сеанса съема информации
-    send_and_save(ta1, 13, 17, [0x0007, 0x0000, 0x0000, 0x0000], 4, log_file)  # старт сеанса съема информации
-    for time_out in range(60, 140, 20):
-        start_cycle_time = time.strftime("%Y_%m_%d %H-%M-%S", time.localtime())
-        print("%.3f: Timeout = %dms" % (work_interval(start_test_time), time_out))
-        frames.reset()
-        for cnt in range(3000):
-            send_and_save(ta1, 13, 18, [0, 0, 0, 0], 4, log_file)
-            time.sleep(time_out/1000)
-            data_str = read_and_save(13, 14, 32, log_file)
-            if cnt % 300 == 0 or "BAD" in data_str[0] or "RT busy" in data_str[0]:
-                print("%.3f: Result: %s  %s" % (work_interval(start_test_time), frames, data_str[0]))
-        print("%.3f: Result: %s" % (work_interval(start_test_time), frames))
-        test_result.append([time_out, frames.crc_bad_prc, frames.busy_prc])
-    for var in test_result:
-        print("Timeout = %03d, crc_bad=%03.2f, busy=%03.2f" % (var[0], var[1], var[2]))
-    pass
-# нормальная работа
-if normal_mode:
 
+if __name__ == "__main__":
+    logger.add("Log Files\\{time:YYYY_MM_DD}\\{time:YYYY_MM_DD HH-mm-ss} Лог МКО_%s.log" % mko_cyclogram[0])
     while 1:
-        # цикл проверки подключения МКО
-        while 1:
-            state = ta1.init()
-            if state == 0:
-                break
-            else:
-                print("MKO not opened")
-            time.sleep(2)
-        time.sleep(0.01)
-        if time_tmp <= time.perf_counter():
-            # заполняем поля
-            addr = mko_polling.cycle[number][1]
-            subaddr = mko_polling.cycle[number][2]
-            direction = mko_polling.cycle[number][3]
-            data = mko_polling.cycle[number][4]
-            leng = mko_polling.cycle[number][5]
-            log_file = open(log_file_name, "a")
-            if direction == 0:
-                report_str = send_and_save(ta1, addr, subaddr, data, leng, log_file)
-                print(report_str)
-                pass
-            else:
-                report_str, data_list = read_and_save(ta1, addr, subaddr, leng, log_file)
-                print(report_str)
-                pass
-            pass
-            log_file.close()
-            # сдвигаем номер цикла
-            number += 1
-            # запоминаем новое время
-            if number < len(mko_polling.cycle):
-                time_tmp = time_start + mko_polling.cycle[number][0]
-            else:
-                break
-    print(frames)
-ta1.disconnect()
+        # ta1.disconnect()
+        state = ta1.init()
+        ta1.change_bus()
+        if state == 0:
+            input("Press Enter to continue...\n")
+            time_start: float = time.perf_counter()
+            mko_polling = mko.PollingProgram(program=ba_kv_polling_ISS.form_cg_bakv_CHP4_with_dv1_2_lvl())
+            time_tmp = time_start + mko_polling.cycle[number][0]
+            start_cycle_time: str = time.strftime("%Y_%m_%d %H-%M-%S", time.localtime())
+            cycle_leng = mko_polling.cycle[len(mko_polling.cycle) - 1][0]
+            stop_cycle_time: str = time.strftime("%Y_%m_%d %H-%M-%S", time.localtime(time.time() + cycle_leng*repeat_num))
+            if normal_mode:
+                logger.info(f"MKO polling ver {self_version}")
+                logger.info(f"Polling start with cycle <{mko_cyclogram[0]}>, len: {len(mko_polling.cycle)}")
+                logger.info("Start at {0:s}, finish at {1:s}\n".format(start_cycle_time, stop_cycle_time))
+                # with open(log_file_name, 'a', encoding="utf-8") as l_f:
+                #     l_f.write(head_str + "\n")
+            break
+        else:
+            logger.info("MKO not opened")
+        time.sleep(2)
+    # тестирование
+    for j in range(repeat_num):
+        logger.info("Repeat num: %d" % (j))
+        number = 0
+        data_old = 0
+        repeat_counter = 0
+        channel = 0
+        time_start: float = time.perf_counter()
+        mko_polling = mko.PollingProgram(program=ba_kv_polling_ISS.form_cg_bakv_CHP4_with_dv1_2_lvl())
+        time_tmp = time_start + mko_polling.cycle[number][0]
+        # нормальная работа
+        if normal_mode:
+            while 1:
+                # цикл проверки подключения МКО
+                while 1:
+                    state = ta1.init()
+                    if state == 0:
+                        break
+                    else:
+                        logger.info("MKO not opened")
+                    time.sleep(2)
+                time.sleep(0.002)
+                if time_tmp <= time.perf_counter():
+                    # заполняем поля
+                    addr = mko_polling.cycle[number][1]
+                    subaddr = mko_polling.cycle[number][2]
+                    direction = mko_polling.cycle[number][3]
+                    data = mko_polling.cycle[number][4]
+                    leng = mko_polling.cycle[number][5]
+                    log_file = None # open(log_file_name, "a")
+                    if direction == 0:
+                        report_str = send_and_save(ta1, addr, subaddr, data, leng, log_file)
+                        logger.info(report_str)
+                        pass
+                    else:
+                        report_str, data_list = read_and_save(ta1, addr, subaddr, leng, log_file)
+                        logger.info(report_str)
+                        pass
+                    pass
+                    # log_file.close()
+                    # сдвигаем номер цикла
+                    number += 1
+                    # запоминаем новое время
+                    if number < len(mko_polling.cycle):
+                        time_tmp = time_start + mko_polling.cycle[number][0]
+                    else:
+                        break
+            logger.info(frames)
+        j += 1
+    ta1.disconnect()
+
